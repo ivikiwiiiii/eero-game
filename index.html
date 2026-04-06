@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Eero's Platform Game</title>
+    <style>
+        * { margin: 0; padding: 0; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const GAME_W = 960;
+        const GAME_H = 540;
+        canvas.width = GAME_W;
+        canvas.height = GAME_H;
+
+        function fitCanvas() {
+            const scaleX = window.innerWidth / GAME_W;
+            const scaleY = window.innerHeight / GAME_H;
+            const scale = Math.min(scaleX, scaleY);
+            canvas.style.width = (GAME_W * scale) + 'px';
+            canvas.style.height = (GAME_H * scale) + 'px';
+        }
+        fitCanvas();
+        window.addEventListener('resize', fitCanvas);
+
+        // Player
+        const player = {
+            x: 50,
+            y: 300,
+            width: 30,
+            height: 30,
+            speedX: 0,
+            speedY: 0,
+            onGround: false,
+            jumpsLeft: 2,
+            mode: 'normal',
+            spikyHits: 0,
+            spikyCooldown: 0
+        };
+
+        // Controls
+        const keys = {};
+        let jumpPressed = false;
+        window.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if (e.key === ' ') e.preventDefault();
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.key] = false;
+            if (e.key === ' ') jumpPressed = false;
+        });
+        window.addEventListener('blur', () => {
+            for (const key in keys) keys[key] = false;
+            jumpPressed = false;
+        });
+
+        // Level system
+        let level = 1;
+        let platforms = [];
+        let finish = {};
+
+        // Background colors change every 10 levels
+        function getBackground() {
+            if (level <= 10) return '#87CEEB';      // Sky blue
+            if (level <= 20) return '#FF8C42';      // Sunset orange
+            if (level <= 30) return '#1a1a4e';      // Night blue
+            if (level <= 40) return '#6B2FA0';      // Purple space
+            return '#8B0000';                        // Red volcanic
+        }
+
+        // Text color so you can read it on dark backgrounds
+        function getTextColor() {
+            if (level <= 10) return 'white';
+            if (level <= 20) return 'white';
+            return '#FFD700';
+        }
+
+        function generateLevel() {
+            platforms = [];
+
+            // Ground is always there
+            platforms.push({ x: 0, y: GAME_H - 40, width: 250, height: 40, hasSpike: false });
+
+            // More platforms as level goes up
+            const platCount = 5 + Math.floor(level * 0.6);
+            // More spikes as level goes up
+            const spikeChance = 0.15 + (level * 0.012);
+
+            // Use a simple random seed based on level so each level is always the same
+            let seed = level * 7 + 13;
+            function random() {
+                seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+                return (seed % 1000) / 1000;
+            }
+
+            // Generate platforms spread across the whole screen
+            let lastX = 80;
+            let lastY = GAME_H - 100;
+
+            for (let i = 0; i < platCount; i++) {
+                // Spread platforms evenly across the screen width
+                const targetX = ((i + 1) / (platCount + 1)) * (GAME_W - 100) + 30;
+                const width = 70 + random() * 70;
+                let x = targetX + (random() - 0.5) * 80;
+                let y = lastY - (15 + random() * 25);
+
+                // Sometimes go down instead of up to mix it up
+                if (random() < 0.3 && y > 150) {
+                    y = lastY + 10 + random() * 30;
+                }
+
+                // Keep on screen horizontally
+                if (x + width > GAME_W - 20) {
+                    x = GAME_W - width - 30;
+                }
+                // Keep on screen vertically
+                if (y < 70) {
+                    y = 70 + random() * 60;
+                }
+                if (y > GAME_H - 70) {
+                    y = GAME_H - 70;
+                }
+
+                const hasSpike = random() < spikeChance;
+                platforms.push({ x, y, width, height: 15, hasSpike });
+
+                lastX = x;
+                lastY = y;
+            }
+
+            // Place finish on the last platform
+            const lastPlat = platforms[platforms.length - 1];
+            finish = {
+                x: lastPlat.x + lastPlat.width / 2 - 10,
+                y: lastPlat.y - 40,
+                width: 30,
+                height: 40
+            };
+        }
+
+        const startX = 50;
+        let startY = 400;
+
+        // Death animation
+        let dying = false;
+        let deathTimer = 0;
+        let deathX = 0;
+        let deathY = 0;
+        let deathSpeedY = 0;
+        let deathSpin = 0;
+
+        function killPlayer() {
+            if (dying) return;
+            dying = true;
+            deathTimer = 90; // 1.5 seconds
+            deathX = player.x;
+            deathY = player.y;
+            deathSpeedY = -8; // fly up first
+            deathSpin = 0;
+        }
+
+        // Win animation
+        let winning = false;
+        let winTimer = 0;
+        let winX = 0;
+        let winY = 0;
+        let confetti = [];
+        let winBeat = false;
+
+        function startWinAnimation() {
+            if (winning || dying) return;
+            winning = true;
+            winTimer = 150; // 2.5 seconds
+            winX = player.x;
+            winY = player.y;
+            // Create confetti particles
+            confetti = [];
+            for (let i = 0; i < 60; i++) {
+                confetti.push({
+                    x: Math.random() * GAME_W,
+                    y: -10 - Math.random() * 200,
+                    speedX: (Math.random() - 0.5) * 3,
+                    speedY: 1 + Math.random() * 3,
+                    color: ['#FF0000', '#00FF00', '#0000FF', '#FFD700', '#FF69B4', '#00FFFF'][Math.floor(Math.random() * 6)],
+                    size: 4 + Math.random() * 6,
+                    spin: Math.random() * 6
+                });
+            }
+        }
+
+        function resetPlayer() {
+            startY = GAME_H - 80;
+            player.x = startX;
+            player.y = startY;
+            player.speedX = 0;
+            player.speedY = 0;
+            player.jumpsLeft = 2;
+            player.mode = 'normal';
+            player.spikyHits = 0;
+            player.spikyCooldown = 0;
+        }
+
+        function nextLevel() {
+            if (level >= 50) {
+                level = 1;
+            } else {
+                level++;
+            }
+            generateLevel();
+            resetPlayer();
+        }
+
+        function update() {
+            // Movement
+            if (keys['a'] || keys['A']) {
+                player.speedX = -3;
+            } else if (keys['d'] || keys['D']) {
+                player.speedX = 3;
+            } else {
+                player.speedX = 0;
+            }
+
+            // Jump - double jump allowed!
+            if (keys[' '] && !jumpPressed && player.jumpsLeft > 0) {
+                player.speedY = -10;
+                player.onGround = false;
+                player.jumpsLeft--;
+                jumpPressed = true;
+            }
+
+            // Spiky cooldown timer (counts down each frame, 60 frames = 1 second)
+            if (player.spikyCooldown > 0) {
+                player.spikyCooldown--;
+            }
+
+            // Switch character
+            if (keys['k'] || keys['K']) {
+                player.mode = 'normal';
+            }
+            if (keys['l'] || keys['L']) {
+                if (player.spikyCooldown <= 0) {
+                    if (player.mode !== 'spiky') {
+                        player.spikyHits = 0;
+                    }
+                    player.mode = 'spiky';
+                }
+            }
+
+            // Gravity
+            player.speedY += 0.5;
+
+            // Move player
+            player.x += player.speedX;
+            player.y += player.speedY;
+
+            // Platform collision
+            player.onGround = false;
+            for (const plat of platforms) {
+                if (
+                    player.x + player.width > plat.x &&
+                    player.x < plat.x + plat.width &&
+                    player.y + player.height > plat.y &&
+                    player.y + player.height < plat.y + plat.height + 10 &&
+                    player.speedY >= 0
+                ) {
+                    player.y = plat.y - player.height;
+                    player.speedY = 0;
+                    player.onGround = true;
+                    player.jumpsLeft = 2;
+
+                    // Spike check
+                    if (plat.hasSpike && player.spikyCooldown <= 0) {
+                        if (player.mode === 'spiky' && player.spikyHits === 0) {
+                            player.spikyHits = 1;
+                            // Bounce off the spike!
+                            player.speedY = -8;
+                            player.onGround = false;
+                            // Switch back to normal and start 5 second cooldown
+                            player.mode = 'normal';
+                            player.spikyCooldown = 300; // 5 seconds (60 frames per second)
+                        } else {
+                            killPlayer();
+                        }
+                    }
+                }
+            }
+
+            // Fall off screen
+            if (player.y > GAME_H + 50) {
+                killPlayer();
+            }
+
+            // Keep player on screen horizontally
+            if (player.x < 0) player.x = 0;
+            if (player.x > GAME_W) player.x = GAME_W - player.width;
+
+            // Check finish
+            if (
+                player.x + player.width > finish.x &&
+                player.x < finish.x + finish.width &&
+                player.y + player.height > finish.y &&
+                player.y < finish.y + finish.height
+            ) {
+                startWinAnimation();
+            }
+        }
+
+        function drawPlayer() {
+            if (player.mode === 'normal') {
+                ctx.fillStyle = '#4444FF';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+                ctx.fillStyle = 'white';
+                ctx.fillRect(player.x + 6, player.y + 8, 6, 6);
+                ctx.fillRect(player.x + 18, player.y + 8, 6, 6);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(player.x + 8, player.y + 10, 3, 3);
+                ctx.fillRect(player.x + 20, player.y + 10, 3, 3);
+            } else {
+                ctx.fillStyle = '#FF4444';
+                ctx.fillRect(player.x, player.y + 5, player.width, player.height - 5);
+                ctx.fillStyle = '#FF4444';
+                for (let i = 0; i < 5; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(player.x + i * 6, player.y + 5);
+                    ctx.lineTo(player.x + i * 6 + 3, player.y - 3);
+                    ctx.lineTo(player.x + i * 6 + 6, player.y + 5);
+                    ctx.fill();
+                }
+                ctx.fillStyle = 'white';
+                ctx.fillRect(player.x + 6, player.y + 13, 6, 6);
+                ctx.fillRect(player.x + 18, player.y + 13, 6, 6);
+                ctx.fillStyle = 'black';
+                ctx.fillRect(player.x + 8, player.y + 15, 3, 3);
+                ctx.fillRect(player.x + 20, player.y + 15, 3, 3);
+
+                if (player.spikyHits === 0) {
+                    ctx.strokeStyle = '#FFD700';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(player.x + 15, player.y + 15, 20, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        function drawPlatforms() {
+            for (const plat of platforms) {
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(plat.x, plat.y, plat.width, 4);
+
+                if (plat.hasSpike) {
+                    ctx.fillStyle = '#888888';
+                    const spikeCount = Math.floor(plat.width / 15);
+                    for (let i = 0; i < spikeCount; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(plat.x + i * 15 + 2, plat.y);
+                        ctx.lineTo(plat.x + i * 15 + 8, plat.y - 12);
+                        ctx.lineTo(plat.x + i * 15 + 14, plat.y);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        function drawFinish() {
+            ctx.fillStyle = '#333';
+            ctx.fillRect(finish.x + 3, finish.y, 4, finish.height);
+            ctx.fillStyle = '#FF0000';
+            ctx.beginPath();
+            ctx.moveTo(finish.x + 7, finish.y);
+            ctx.lineTo(finish.x + 30, finish.y + 10);
+            ctx.lineTo(finish.x + 7, finish.y + 20);
+            ctx.fill();
+            ctx.fillStyle = getTextColor();
+            ctx.font = 'bold 10px Arial';
+            ctx.fillText('FINISH', finish.x - 5, finish.y - 5);
+        }
+
+        function drawHUD() {
+            const color = getTextColor();
+            ctx.fillStyle = color;
+            ctx.font = 'bold 20px Arial';
+            ctx.fillText('LEVEL ' + level + ' / 50', 10, 28);
+            ctx.font = '14px Arial';
+            ctx.fillText('Character: ' + player.mode.toUpperCase(), 10, 48);
+            ctx.fillText('K = Normal | L = Spiky', 10, 66);
+            if (player.mode === 'spiky') {
+                ctx.fillText('Shield: ' + (player.spikyHits === 0 ? 'READY' : 'USED'), 10, 84);
+            }
+            if (player.spikyCooldown > 0) {
+                ctx.fillStyle = '#FF6666';
+                ctx.fillText('Spiky cooldown: ' + Math.ceil(player.spikyCooldown / 60) + 's', 10, 102);
+            }
+        }
+
+        function drawDeathAnimation() {
+            // Spinning player flying up then falling
+            deathSpeedY += 0.3;
+            deathY += deathSpeedY;
+            deathSpin += 0.15;
+            deathTimer--;
+
+            ctx.save();
+            ctx.translate(deathX + 15, deathY + 15);
+            ctx.rotate(deathSpin);
+            ctx.fillStyle = '#FF0000';
+            ctx.fillRect(-15, -15, 30, 30);
+            // X eyes
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-8, -6); ctx.lineTo(-2, 0);
+            ctx.moveTo(-2, -6); ctx.lineTo(-8, 0);
+            ctx.moveTo(2, -6); ctx.lineTo(8, 0);
+            ctx.moveTo(8, -6); ctx.lineTo(2, 0);
+            ctx.stroke();
+            ctx.restore();
+
+            // "YOU DIED" text with flashing effect
+            if (Math.floor(deathTimer / 8) % 2 === 0) {
+                ctx.fillStyle = '#FF0000';
+                ctx.font = 'bold 50px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('YOU DIED!', GAME_W / 2, GAME_H / 2);
+                ctx.textAlign = 'left';
+            }
+
+            if (deathTimer <= 0) {
+                dying = false;
+                resetPlayer();
+            }
+        }
+
+        function drawWinAnimation() {
+            winTimer--;
+
+            // Giant dancing character in the center of the screen!
+            const bounce = Math.sin(winTimer * 0.3) * 20;
+            const lean = Math.sin(winTimer * 0.2) * 0.15;
+            const armWave = Math.sin(winTimer * 0.4) * 60;
+            const size = 120;
+
+            ctx.save();
+            ctx.translate(GAME_W / 2, GAME_H / 2 + 30 + bounce);
+            ctx.rotate(lean);
+
+            // Body
+            ctx.fillStyle = '#4444FF';
+            ctx.fillRect(-size / 2, -size / 2, size, size);
+
+            // Happy eyes (big and round)
+            ctx.fillStyle = 'white';
+            ctx.fillRect(-size * 0.3, -size * 0.2, size * 0.22, size * 0.22);
+            ctx.fillRect(size * 0.08, -size * 0.2, size * 0.22, size * 0.22);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(-size * 0.24, -size * 0.14, size * 0.12, size * 0.12);
+            ctx.fillRect(size * 0.14, -size * 0.14, size * 0.12, size * 0.12);
+
+            // Big smile
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(0, size * 0.1, size * 0.25, 0.1, Math.PI - 0.1);
+            ctx.stroke();
+
+            // Dancing legs
+            const legKick = Math.sin(winTimer * 0.3) * 20;
+            ctx.strokeStyle = '#4444FF';
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.2, size / 2);
+            ctx.lineTo(-size * 0.3, size / 2 + 40 + legKick);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(size * 0.2, size / 2);
+            ctx.lineTo(size * 0.3, size / 2 + 40 - legKick);
+            ctx.stroke();
+
+            // Dancing arms
+            ctx.strokeStyle = '#4444FF';
+            ctx.lineWidth = 10;
+            // Left arm
+            ctx.beginPath();
+            ctx.moveTo(-size / 2, -size * 0.1);
+            ctx.lineTo(-size / 2 - 40, -size * 0.4 + armWave);
+            ctx.stroke();
+            // Right arm
+            ctx.beginPath();
+            ctx.moveTo(size / 2, -size * 0.1);
+            ctx.lineTo(size / 2 + 40, -size * 0.4 - armWave);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Confetti falling
+            for (const c of confetti) {
+                c.x += c.speedX;
+                c.y += c.speedY;
+                c.spin += 0.1;
+                ctx.save();
+                ctx.translate(c.x, c.y);
+                ctx.rotate(c.spin);
+                ctx.fillStyle = c.color;
+                ctx.fillRect(-c.size / 2, -c.size / 4, c.size, c.size / 2);
+                ctx.restore();
+            }
+
+            // "YOU WIN!" text with rainbow effect
+            const colors = ['#FF0000', '#FF8800', '#FFFF00', '#00FF00', '#0088FF', '#8800FF'];
+            const colorIndex = Math.floor(winTimer / 5) % colors.length;
+            ctx.fillStyle = colors[colorIndex];
+            ctx.font = 'bold 55px Arial';
+            ctx.textAlign = 'center';
+            if (level >= 50) {
+                ctx.fillText('CHAMPION!', GAME_W / 2, GAME_H / 2 - 40);
+                ctx.font = 'bold 30px Arial';
+                ctx.fillText('YOU BEAT ALL 50 LEVELS!', GAME_W / 2, GAME_H / 2 + 10);
+            } else {
+                ctx.fillText('YOU WIN!', GAME_W / 2, GAME_H / 2 - 20);
+                ctx.font = 'bold 25px Arial';
+                ctx.fillStyle = 'white';
+                ctx.fillText('Level ' + level + ' complete!', GAME_W / 2, GAME_H / 2 + 20);
+            }
+            ctx.textAlign = 'left';
+
+            if (winTimer <= 0) {
+                winning = false;
+                nextLevel();
+            }
+        }
+
+        function gameLoop() {
+            // Background
+            ctx.fillStyle = getBackground();
+            ctx.fillRect(0, 0, GAME_W, GAME_H);
+
+            if (dying) {
+                drawPlatforms();
+                drawFinish();
+                drawDeathAnimation();
+                drawHUD();
+            } else if (winning) {
+                drawPlatforms();
+                drawFinish();
+                drawWinAnimation();
+                drawHUD();
+            } else {
+                update();
+                drawPlatforms();
+                drawFinish();
+                drawPlayer();
+                drawHUD();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        generateLevel();
+        resetPlayer();
+        gameLoop();
+    </script>
+</body>
+</html>
