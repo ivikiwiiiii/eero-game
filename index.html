@@ -71,17 +71,40 @@
         const ctx = canvas.getContext('2d');
         const GAME_W = 960;
         const GAME_H = 540;
-        canvas.width = GAME_W;
-        canvas.height = GAME_H;
+        const isMobileDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+        // On mobile: show a zoomed-in viewport that follows the player
+        // View width is half the game, so everything is 2x bigger
+        const VIEW_W = isMobileDevice ? 480 : GAME_W;
+        const VIEW_H = isMobileDevice ? 340 : GAME_H;
+        canvas.width = VIEW_W;
+        canvas.height = VIEW_H;
+
+        // Camera position (top-left corner of what we see)
+        const cam = { x: 0, y: 0 };
+
+        function updateCamera() {
+            if (!isMobileDevice) return;
+            // Follow the player, keep them roughly centered
+            const targetX = player.x - VIEW_W / 2 + player.width / 2;
+            const targetY = player.y - VIEW_H / 2 + player.height / 2;
+            // Smooth follow
+            cam.x += (targetX - cam.x) * 0.15;
+            cam.y += (targetY - cam.y) * 0.15;
+            // Clamp to game bounds
+            if (cam.x < 0) cam.x = 0;
+            if (cam.x > GAME_W - VIEW_W) cam.x = GAME_W - VIEW_W;
+            if (cam.y < 0) cam.y = 0;
+            if (cam.y > GAME_H - VIEW_H) cam.y = GAME_H - VIEW_H;
+        }
 
         function fitCanvas() {
-            const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-            if (isTouchDevice) {
+            if (isMobileDevice) {
                 canvas.classList.add('mobile');
-                // Full width, game at the top of the screen
-                const scale = window.innerWidth / GAME_W;
+                // Fill the width, let height be proportional
+                const scale = window.innerWidth / VIEW_W;
                 canvas.style.width = window.innerWidth + 'px';
-                canvas.style.height = (GAME_H * scale) + 'px';
+                canvas.style.height = (VIEW_H * scale) + 'px';
             } else {
                 const scaleX = window.innerWidth / GAME_W;
                 const scaleY = window.innerHeight / GAME_H;
@@ -493,7 +516,7 @@
                 ctx.fillStyle = '#FF0000';
                 ctx.font = 'bold 50px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('YOU DIED!', GAME_W / 2, GAME_H / 2);
+                ctx.fillText('YOU DIED!', cam.x + VIEW_W / 2, cam.y + VIEW_H / 2);
                 ctx.textAlign = 'left';
             }
 
@@ -513,7 +536,7 @@
             const size = 120;
 
             ctx.save();
-            ctx.translate(GAME_W / 2, GAME_H / 2 + 30 + bounce);
+            ctx.translate(cam.x + VIEW_W / 2, cam.y + VIEW_H / 2 + 30 + bounce);
             ctx.rotate(lean);
 
             // Body
@@ -584,14 +607,14 @@
             ctx.font = 'bold 55px Arial';
             ctx.textAlign = 'center';
             if (level >= 50) {
-                ctx.fillText('CHAMPION!', GAME_W / 2, GAME_H / 2 - 40);
+                ctx.fillText('CHAMPION!', cam.x + VIEW_W / 2, cam.y + VIEW_H / 2 - 40);
                 ctx.font = 'bold 30px Arial';
-                ctx.fillText('YOU BEAT ALL 50 LEVELS!', GAME_W / 2, GAME_H / 2 + 10);
+                ctx.fillText('YOU BEAT ALL 50 LEVELS!', cam.x + VIEW_W / 2, cam.y + VIEW_H / 2 + 10);
             } else {
-                ctx.fillText('YOU WIN!', GAME_W / 2, GAME_H / 2 - 20);
+                ctx.fillText('YOU WIN!', cam.x + VIEW_W / 2, cam.y + VIEW_H / 2 - 20);
                 ctx.font = 'bold 25px Arial';
                 ctx.fillStyle = 'white';
-                ctx.fillText('Level ' + level + ' complete!', GAME_W / 2, GAME_H / 2 + 20);
+                ctx.fillText('Level ' + level + ' complete!', cam.x + VIEW_W / 2, cam.y + VIEW_H / 2 + 20);
             }
             ctx.textAlign = 'left';
 
@@ -605,27 +628,36 @@
             if (gameState === 'title') {
                 drawTitleScreen();
             } else {
-                // Background
+                if (!dying && !winning) update();
+                updateCamera();
+
+                // Background fills entire visible area
                 ctx.fillStyle = getBackground();
-                ctx.fillRect(0, 0, GAME_W, GAME_H);
+                ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+
+
+                // Apply camera offset for world drawing
+                ctx.save();
+                ctx.translate(-cam.x, -cam.y);
 
                 if (dying) {
                     drawPlatforms();
                     drawFinish();
                     drawDeathAnimation();
-                    drawHUD();
                 } else if (winning) {
                     drawPlatforms();
                     drawFinish();
                     drawWinAnimation();
-                    drawHUD();
                 } else {
-                    update();
                     drawPlatforms();
                     drawFinish();
                     drawPlayer();
-                    drawHUD();
                 }
+
+                ctx.restore();
+
+                // HUD drawn without camera offset (stays on screen)
+                drawHUD();
             }
 
             requestAnimationFrame(gameLoop);
@@ -647,26 +679,26 @@
 
             // Background - nice gradient sky
             ctx.fillStyle = '#1a1a4e';
-            ctx.fillRect(0, 0, GAME_W, GAME_H);
+            ctx.fillRect(0, 0, VIEW_W, VIEW_H);
 
             // Stars twinkling
             for (let i = 0; i < 50; i++) {
-                const sx = (i * 137 + 50) % GAME_W;
-                const sy = (i * 97 + 30) % (GAME_H * 0.6);
+                const sx = (i * 137 + 50) % VIEW_W;
+                const sy = (i * 97 + 30) % (VIEW_H * 0.6);
                 const twinkle = Math.sin(titleTimer * 0.05 + i) * 0.5 + 0.5;
                 ctx.fillStyle = 'rgba(255, 255, 255, ' + twinkle + ')';
                 ctx.fillRect(sx, sy, 2, 2);
             }
 
             // Dancing character doing jumping jacks
-            const size = 80;
+            const size = isMobileDevice ? 50 : 80;
             const jumpHeight = Math.abs(Math.sin(titleTimer * 0.08)) * 30;
             const jackPhase = Math.sin(titleTimer * 0.15);
             const armAngle = jackPhase * 0.8;
             const legAngle = jackPhase * 0.5;
 
             ctx.save();
-            ctx.translate(GAME_W / 2, GAME_H / 2 + 40 - jumpHeight);
+            ctx.translate(VIEW_W / 2, VIEW_H / 2 + 40 - jumpHeight);
 
             // Body
             ctx.fillStyle = '#4444FF';
@@ -715,40 +747,46 @@
             const colors = ['#FF0000', '#FF8800', '#FFFF00', '#00FF00', '#0088FF', '#8800FF'];
             const colorIndex = Math.floor(titleTimer / 8) % colors.length;
             ctx.fillStyle = colors[colorIndex];
-            ctx.font = 'bold 40px Arial';
+            const titleSize = isMobileDevice ? 24 : 40;
+            ctx.font = 'bold ' + titleSize + 'px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText("Welcome to Eero's", GAME_W / 2, 70);
-            ctx.fillText('First Platform Game!', GAME_W / 2, 120);
+            ctx.fillText("Welcome to Eero's", VIEW_W / 2, isMobileDevice ? 40 : 70);
+            ctx.fillText('First Platform Game!', VIEW_W / 2, isMobileDevice ? 70 : 120);
 
             // Controls box
-            const boxX = GAME_W / 2;
-            const boxY = GAME_H - 140;
+            const boxX = VIEW_W / 2;
+            const boxY = VIEW_H - (isMobileDevice ? 80 : 140);
+            const boxFont = isMobileDevice ? 11 : 16;
 
             ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-            ctx.fillRect(boxX - 200, boxY - 25, 400, 115);
+            ctx.fillRect(boxX - (isMobileDevice ? 150 : 200), boxY - 25, isMobileDevice ? 300 : 400, isMobileDevice ? 80 : 115);
 
             ctx.fillStyle = '#FFD700';
-            ctx.font = 'bold 18px Arial';
+            ctx.font = 'bold ' + (isMobileDevice ? 14 : 18) + 'px Arial';
             ctx.fillText('CONTROLS', boxX, boxY);
             ctx.fillStyle = 'white';
-            ctx.font = '16px Arial';
-            ctx.fillText('A = Move Left    D = Move Right    Space = Jump (x2!)', boxX, boxY + 25);
-            ctx.fillText('K = Normal Character    L = Spiky Character (has shield!)', boxX, boxY + 50);
-            ctx.fillText('Reach the flag to beat each level. 50 levels total!', boxX, boxY + 75);
+            ctx.font = boxFont + 'px Arial';
+            if (isMobileDevice) {
+                ctx.fillText('Use on-screen buttons to play!', boxX, boxY + 20);
+                ctx.fillText('NORMAL = safe  |  SPIKY = has shield!', boxX, boxY + 38);
+            } else {
+                ctx.fillText('A = Move Left    D = Move Right    Space = Jump (x2!)', boxX, boxY + 25);
+                ctx.fillText('K = Normal Character    L = Spiky Character (has shield!)', boxX, boxY + 50);
+            }
+            ctx.fillText('Reach the flag to beat each level. 50 levels total!', boxX, boxY + (isMobileDevice ? 56 : 75));
 
             // Press any key prompt - blinking
             if (Math.floor(titleTimer / 30) % 2 === 0) {
                 ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 22px Arial';
-                const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-                ctx.fillText(isTouchDevice ? 'Tap to start!' : 'Press any key to start!', GAME_W / 2, GAME_H - 15);
+                ctx.font = 'bold ' + (isMobileDevice ? 16 : 22) + 'px Arial';
+                ctx.fillText(isMobileDevice ? 'Tap to start!' : 'Press any key to start!', VIEW_W / 2, VIEW_H - 15);
             }
 
             // Credit
             ctx.textAlign = 'left';
             ctx.fillStyle = '#888';
-            ctx.font = '18px Arial';
-            ctx.fillText('Game by Eero Puhakka', 20, GAME_H - 15);
+            ctx.font = (isMobileDevice ? 12 : 18) + 'px Arial';
+            ctx.fillText('Game by Eero Puhakka', 10, VIEW_H - 5);
         }
 
         // === MOBILE TOUCH CONTROLS ===
