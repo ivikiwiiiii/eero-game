@@ -75,8 +75,8 @@
 
         // On mobile: show a zoomed-in viewport that follows the player
         // View width is half the game, so everything is 2x bigger
-        const VIEW_W = isMobileDevice ? 480 : GAME_W;
-        const VIEW_H = isMobileDevice ? 340 : GAME_H;
+        const VIEW_W = isMobileDevice ? 420 : GAME_W;
+        const VIEW_H = isMobileDevice ? 380 : GAME_H;
         const TITLE_W = isMobileDevice ? 400 : GAME_W;
         const TITLE_H = isMobileDevice ? 700 : GAME_H;
 
@@ -495,13 +495,16 @@
             ctx.fillText('LEVEL ' + level + ' / 50', 10, 28);
             ctx.font = '14px Arial';
             ctx.fillText('Character: ' + player.mode.toUpperCase(), 10, 48);
-            ctx.fillText('K = Normal | L = Spiky', 10, 66);
+            if (!isMobileDevice) {
+                ctx.fillText('K = Normal | L = Spiky', 10, 66);
+            }
+            const hudY = isMobileDevice ? 66 : 84;
             if (player.mode === 'spiky') {
-                ctx.fillText('Shield: ' + (player.spikyHits === 0 ? 'READY' : 'USED'), 10, 84);
+                ctx.fillText('Shield: ' + (player.spikyHits === 0 ? 'READY' : 'USED'), 10, hudY);
             }
             if (player.spikyCooldown > 0) {
                 ctx.fillStyle = '#FF6666';
-                ctx.fillText('Spiky cooldown: ' + Math.ceil(player.spikyCooldown / 60) + 's', 10, 102);
+                ctx.fillText('Spiky cooldown: ' + Math.ceil(player.spikyCooldown / 60) + 's', 10, hudY + 18);
             }
         }
 
@@ -722,10 +725,10 @@
             if (isMobileDevice) {
                 // MOBILE VERTICAL LAYOUT
                 ctx.font = 'bold 32px Arial';
-                ctx.fillText("Welcome to", tw / 2, 50);
-                ctx.fillText("Eero's", tw / 2, 90);
+                ctx.fillText("Welcome to", tw / 2, 90);
+                ctx.fillText("Eero's", tw / 2, 130);
                 ctx.font = 'bold 28px Arial';
-                ctx.fillText('Platform Game!', tw / 2, 130);
+                ctx.fillText('Platform Game!', tw / 2, 170);
 
                 // Dancing character - bigger on mobile title
                 const size = 90;
@@ -735,7 +738,7 @@
                 const legAngle = jackPhase * 0.5;
 
                 ctx.save();
-                ctx.translate(tw / 2, 280 - jumpHeight);
+                ctx.translate(tw / 2, 320 - jumpHeight);
 
                 ctx.fillStyle = '#4444FF';
                 ctx.fillRect(-size / 2, -size / 2, size, size);
@@ -773,13 +776,6 @@
                 ctx.fillText('NORMAL  Safe character', tw / 2, 510);
                 ctx.fillText('SPIKY  Has a shield (blocks 1 spike!)', tw / 2, 535);
                 ctx.fillText('Reach the flag to beat each level!', tw / 2, 560);
-
-                // Tap to start
-                if (Math.floor(titleTimer / 30) % 2 === 0) {
-                    ctx.fillStyle = '#FFD700';
-                    ctx.font = 'bold 22px Arial';
-                    ctx.fillText('Tap to start!', tw / 2, 620);
-                }
 
                 // Credit
                 ctx.textAlign = 'left';
