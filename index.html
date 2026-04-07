@@ -41,9 +41,9 @@
         #tb-right { bottom: 25px; left: 100px; width: 64px; height: 64px; font-size: 28px; }
         /* Jump button */
         #tb-jump { bottom: 25px; right: 20px; width: 72px; height: 72px; font-size: 16px; }
-        /* Character switch */
-        #tb-normal { top: 15px; right: 20px; width: 50px; height: 50px; font-size: 11px; background: rgba(68,68,255,0.25); border-color: rgba(68,68,255,0.5); }
-        #tb-spiky { top: 15px; right: 80px; width: 50px; height: 50px; font-size: 11px; background: rgba(255,68,68,0.25); border-color: rgba(255,68,68,0.5); }
+        /* Character switch - above the movement arrows */
+        #tb-normal { bottom: 105px; left: 20px; width: 64px; height: 44px; border-radius: 12px; font-size: 12px; background: rgba(68,68,255,0.3); border-color: rgba(68,68,255,0.5); color: rgba(150,150,255,0.8); }
+        #tb-spiky { bottom: 105px; left: 100px; width: 64px; height: 44px; border-radius: 12px; font-size: 12px; background: rgba(255,68,68,0.3); border-color: rgba(255,68,68,0.5); color: rgba(255,150,150,0.8); }
         /* Start button for title screen */
         #tb-start { bottom: 50%; left: 50%; transform: translate(-50%, 50%); width: 120px; height: 50px; border-radius: 25px; font-size: 16px; display: none; }
     </style>
@@ -56,8 +56,8 @@
         <div id="tb-left" class="touch-btn">◀</div>
         <div id="tb-right" class="touch-btn">▶</div>
         <div id="tb-jump" class="touch-btn">JUMP</div>
-        <div id="tb-normal" class="touch-btn">K<br>Norm</div>
-        <div id="tb-spiky" class="touch-btn">L<br>Spiky</div>
+        <div id="tb-normal" class="touch-btn">NORMAL</div>
+        <div id="tb-spiky" class="touch-btn">SPIKY</div>
     </div>
     <div id="tb-start" class="touch-btn">TAP TO START</div>
 
@@ -71,16 +71,20 @@
 
         function fitCanvas() {
             const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-            const scaleX = window.innerWidth / GAME_W;
-            // On mobile, leave space at bottom for controls
-            const availH = isTouchDevice ? window.innerHeight * 0.78 : window.innerHeight;
-            const scaleY = availH / GAME_H;
-            const scale = Math.min(scaleX, scaleY);
-            canvas.style.width = (GAME_W * scale) + 'px';
-            canvas.style.height = (GAME_H * scale) + 'px';
             if (isTouchDevice) {
-                // Shift canvas up slightly to make room for controls
-                canvas.style.top = '38%';
+                // On mobile portrait: stretch to full width, controls overlay on top
+                const scale = window.innerWidth / GAME_W;
+                canvas.style.width = (GAME_W * scale) + 'px';
+                canvas.style.height = (GAME_H * scale) + 'px';
+                canvas.style.top = '0';
+                canvas.style.left = '0';
+                canvas.style.transform = 'none';
+            } else {
+                const scaleX = window.innerWidth / GAME_W;
+                const scaleY = window.innerHeight / GAME_H;
+                const scale = Math.min(scaleX, scaleY);
+                canvas.style.width = (GAME_W * scale) + 'px';
+                canvas.style.height = (GAME_H * scale) + 'px';
             }
         }
         fitCanvas();
