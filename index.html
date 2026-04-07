@@ -41,16 +41,13 @@
             background: rgba(255,255,255,0.3);
             border-color: rgba(255,255,255,0.5);
         }
-        /* D-pad left/right */
-        #tb-left { bottom: 25px; left: 20px; width: 64px; height: 64px; font-size: 28px; }
-        #tb-right { bottom: 25px; left: 100px; width: 64px; height: 64px; font-size: 28px; }
-        /* Jump button */
-        #tb-jump { bottom: 25px; right: 20px; width: 72px; height: 72px; font-size: 16px; }
-        /* Character switch - above the movement arrows */
-        #tb-normal { bottom: 105px; left: 20px; width: 64px; height: 44px; border-radius: 12px; font-size: 12px; background: rgba(68,68,255,0.3); border-color: rgba(68,68,255,0.5); color: rgba(150,150,255,0.8); }
-        #tb-spiky { bottom: 105px; left: 100px; width: 64px; height: 44px; border-radius: 12px; font-size: 12px; background: rgba(255,68,68,0.3); border-color: rgba(255,68,68,0.5); color: rgba(255,150,150,0.8); }
+        /* Jump button - bottom right */
+        #tb-jump { bottom: 10px; right: 20px; width: 70px; height: 70px; font-size: 15px; }
+        /* Character switch - bottom left */
+        #tb-normal { bottom: 10px; left: 15px; width: 60px; height: 42px; border-radius: 12px; font-size: 11px; background: rgba(68,68,255,0.3); border-color: rgba(68,68,255,0.5); color: rgba(150,150,255,0.8); }
+        #tb-spiky { bottom: 10px; left: 85px; width: 60px; height: 42px; border-radius: 12px; font-size: 11px; background: rgba(255,68,68,0.3); border-color: rgba(255,68,68,0.5); color: rgba(255,150,150,0.8); }
         /* Start button for title screen */
-        #tb-start { bottom: 50%; left: 50%; transform: translate(-50%, 50%); width: 120px; height: 50px; border-radius: 25px; font-size: 16px; display: none; }
+        #tb-start { bottom: 8%; left: 50%; transform: translate(-50%, 0); width: 160px; height: 50px; border-radius: 25px; font-size: 18px; display: none; }
     </style>
 </head>
 <body>
@@ -58,8 +55,6 @@
 
     <!-- Mobile touch buttons (hidden on desktop) -->
     <div class="touch-controls" id="touchControls">
-        <div id="tb-left" class="touch-btn">◀</div>
-        <div id="tb-right" class="touch-btn">▶</div>
         <div id="tb-jump" class="touch-btn">JUMP</div>
         <div id="tb-normal" class="touch-btn">NORMAL</div>
         <div id="tb-spiky" class="touch-btn">SPIKY</div>
@@ -75,8 +70,8 @@
 
         // On mobile: show a zoomed-in viewport that follows the player
         // View width is half the game, so everything is 2x bigger
-        const VIEW_W = isMobileDevice ? 420 : GAME_W;
-        const VIEW_H = isMobileDevice ? 380 : GAME_H;
+        const VIEW_W = isMobileDevice ? 400 : GAME_W;
+        const VIEW_H = isMobileDevice ? 440 : GAME_H;
         const TITLE_W = isMobileDevice ? 400 : GAME_W;
         const TITLE_H = isMobileDevice ? 700 : GAME_H;
 
@@ -765,7 +760,7 @@
 
                 // How to play section
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(20, 400, tw - 40, 170);
+                ctx.fillRect(20, 415, tw - 40, 190);
 
                 ctx.fillStyle = '#FFD700';
                 ctx.font = 'bold 20px Arial';
@@ -773,11 +768,12 @@
 
                 ctx.fillStyle = 'white';
                 ctx.font = '15px Arial';
-                ctx.fillText('◀ ▶  Move left & right', tw / 2, 460);
-                ctx.fillText('JUMP  Jump (you can double jump!)', tw / 2, 485);
-                ctx.fillText('NORMAL  Safe character', tw / 2, 510);
-                ctx.fillText('SPIKY  Has a shield (blocks 1 spike!)', tw / 2, 535);
-                ctx.fillText('Reach the flag to beat each level!', tw / 2, 560);
+                ctx.fillText('Touch LEFT side = move left', tw / 2, 460);
+                ctx.fillText('Touch RIGHT side = move right', tw / 2, 485);
+                ctx.fillText('JUMP button = jump (double jump!)', tw / 2, 510);
+                ctx.fillText('NORMAL = safe character', tw / 2, 535);
+                ctx.fillText('SPIKY = has shield (blocks 1 spike!)', tw / 2, 560);
+                ctx.fillText('Reach the flag to beat each level!', tw / 2, 585);
 
                 // Credit
                 ctx.textAlign = 'left';
@@ -890,11 +886,63 @@
                 });
             }
 
-            touchBtn('tb-left', 'a');
-            touchBtn('tb-right', 'd');
             touchBtn('tb-jump', ' ');
             touchBtn('tb-normal', 'k');
             touchBtn('tb-spiky', 'l');
+
+            // Touch left/right side of canvas to move
+            let moveTouchId = null;
+            canvas.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                for (const touch of e.changedTouches) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = touch.clientX - rect.left;
+                    const mid = rect.width / 2;
+                    if (x < mid) {
+                        keys['a'] = true;
+                        keys['d'] = false;
+                    } else {
+                        keys['d'] = true;
+                        keys['a'] = false;
+                    }
+                    moveTouchId = touch.identifier;
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+                for (const touch of e.changedTouches) {
+                    if (touch.identifier === moveTouchId) {
+                        const rect = canvas.getBoundingClientRect();
+                        const x = touch.clientX - rect.left;
+                        const mid = rect.width / 2;
+                        if (x < mid) {
+                            keys['a'] = true;
+                            keys['d'] = false;
+                        } else {
+                            keys['d'] = true;
+                            keys['a'] = false;
+                        }
+                    }
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                for (const touch of e.changedTouches) {
+                    if (touch.identifier === moveTouchId) {
+                        keys['a'] = false;
+                        keys['d'] = false;
+                        moveTouchId = null;
+                    }
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchcancel', function(e) {
+                keys['a'] = false;
+                keys['d'] = false;
+                moveTouchId = null;
+            });
 
             // Start button for mobile
             const startBtn = document.getElementById('tb-start');
