@@ -77,48 +77,50 @@
         // View width is half the game, so everything is 2x bigger
         const VIEW_W = isMobileDevice ? 480 : GAME_W;
         const VIEW_H = isMobileDevice ? 340 : GAME_H;
-        canvas.width = VIEW_W;
-        canvas.height = VIEW_H;
+        const TITLE_W = isMobileDevice ? 400 : GAME_W;
+        const TITLE_H = isMobileDevice ? 700 : GAME_H;
 
         // Camera position (top-left corner of what we see)
         const cam = { x: 0, y: 0 };
+        let gameState = 'title';
 
         function updateCamera() {
             if (!isMobileDevice) return;
-            // Follow the player, keep them roughly centered
             const targetX = player.x - VIEW_W / 2 + player.width / 2;
             const targetY = player.y - VIEW_H / 2 + player.height / 2;
-            // Smooth follow
             cam.x += (targetX - cam.x) * 0.15;
             cam.y += (targetY - cam.y) * 0.15;
-            // Clamp to game bounds
             if (cam.x < 0) cam.x = 0;
             if (cam.x > GAME_W - VIEW_W) cam.x = GAME_W - VIEW_W;
             if (cam.y < 0) cam.y = 0;
             if (cam.y > GAME_H - VIEW_H) cam.y = GAME_H - VIEW_H;
         }
 
-        // On mobile, title screen gets a tall vertical canvas
-        const TITLE_W = isMobileDevice ? 400 : GAME_W;
-        const TITLE_H = isMobileDevice ? 700 : GAME_H;
-        let gameState = 'title';
-
-        function fitCanvas() {
+        // Set canvas size (only call when state changes, not on resize)
+        function setCanvasSize() {
             if (isMobileDevice) {
-                canvas.classList.add('mobile');
                 if (gameState === 'title') {
                     canvas.width = TITLE_W;
                     canvas.height = TITLE_H;
-                    const scale = Math.min(window.innerWidth / TITLE_W, window.innerHeight / TITLE_H);
-                    canvas.style.width = (TITLE_W * scale) + 'px';
-                    canvas.style.height = (TITLE_H * scale) + 'px';
                 } else {
                     canvas.width = VIEW_W;
                     canvas.height = VIEW_H;
-                    const scale = window.innerWidth / VIEW_W;
-                    canvas.style.width = window.innerWidth + 'px';
-                    canvas.style.height = (VIEW_H * scale) + 'px';
                 }
+            } else {
+                canvas.width = GAME_W;
+                canvas.height = GAME_H;
+            }
+        }
+
+        // Scale canvas with CSS only (doesn't clear canvas)
+        function fitCanvas() {
+            if (isMobileDevice) {
+                canvas.classList.add('mobile');
+                const cw = canvas.width;
+                const ch = canvas.height;
+                const scale = Math.min(window.innerWidth / cw, window.innerHeight / ch);
+                canvas.style.width = (cw * scale) + 'px';
+                canvas.style.height = (ch * scale) + 'px';
             } else {
                 const scaleX = window.innerWidth / GAME_W;
                 const scaleY = window.innerHeight / GAME_H;
@@ -127,6 +129,7 @@
                 canvas.style.height = (GAME_H * scale) + 'px';
             }
         }
+        setCanvasSize();
         fitCanvas();
         window.addEventListener('resize', fitCanvas);
 
@@ -683,7 +686,8 @@
         // Start game when any key is pressed on title screen
         function startPlaying() {
             gameState = 'playing';
-            fitCanvas(); // resize canvas for gameplay
+            setCanvasSize();
+            fitCanvas();
         }
         window.addEventListener('keydown', function startGame(e) {
             if (gameState === 'title') {
