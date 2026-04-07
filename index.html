@@ -2,9 +2,10 @@
 <html>
 <head>
     <title>Eero's Platform Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin: 0; padding: 0; }
-        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; }
         canvas {
             display: block;
             position: absolute;
@@ -12,10 +13,54 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
+        /* Mobile touch controls */
+        .touch-controls { display: none; position: fixed; z-index: 10; pointer-events: none; }
+        .touch-btn {
+            position: fixed;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
+            border: 2px solid rgba(255,255,255,0.25);
+            color: rgba(255,255,255,0.6);
+            font-family: Arial, sans-serif;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            pointer-events: auto;
+            z-index: 20;
+        }
+        .touch-btn:active, .touch-btn.pressed {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+        /* D-pad left/right */
+        #tb-left { bottom: 25px; left: 20px; width: 64px; height: 64px; font-size: 28px; }
+        #tb-right { bottom: 25px; left: 100px; width: 64px; height: 64px; font-size: 28px; }
+        /* Jump button */
+        #tb-jump { bottom: 25px; right: 20px; width: 72px; height: 72px; font-size: 16px; }
+        /* Character switch */
+        #tb-normal { top: 15px; right: 20px; width: 50px; height: 50px; font-size: 11px; background: rgba(68,68,255,0.25); border-color: rgba(68,68,255,0.5); }
+        #tb-spiky { top: 15px; right: 80px; width: 50px; height: 50px; font-size: 11px; background: rgba(255,68,68,0.25); border-color: rgba(255,68,68,0.5); }
+        /* Start button for title screen */
+        #tb-start { bottom: 50%; left: 50%; transform: translate(-50%, 50%); width: 120px; height: 50px; border-radius: 25px; font-size: 16px; display: none; }
     </style>
 </head>
 <body>
     <canvas id="game"></canvas>
+
+    <!-- Mobile touch buttons (hidden on desktop) -->
+    <div class="touch-controls" id="touchControls">
+        <div id="tb-left" class="touch-btn">◀</div>
+        <div id="tb-right" class="touch-btn">▶</div>
+        <div id="tb-jump" class="touch-btn">JUMP</div>
+        <div id="tb-normal" class="touch-btn">K<br>Norm</div>
+        <div id="tb-spiky" class="touch-btn">L<br>Spiky</div>
+    </div>
+    <div id="tb-start" class="touch-btn">TAP TO START</div>
+
     <script>
         const canvas = document.getElementById('game');
         const ctx = canvas.getContext('2d');
@@ -25,11 +70,18 @@
         canvas.height = GAME_H;
 
         function fitCanvas() {
+            const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
             const scaleX = window.innerWidth / GAME_W;
-            const scaleY = window.innerHeight / GAME_H;
+            // On mobile, leave space at bottom for controls
+            const availH = isTouchDevice ? window.innerHeight * 0.78 : window.innerHeight;
+            const scaleY = availH / GAME_H;
             const scale = Math.min(scaleX, scaleY);
             canvas.style.width = (GAME_W * scale) + 'px';
             canvas.style.height = (GAME_H * scale) + 'px';
+            if (isTouchDevice) {
+                // Shift canvas up slightly to make room for controls
+                canvas.style.top = '38%';
+            }
         }
         fitCanvas();
         window.addEventListener('resize', fitCanvas);
@@ -681,7 +733,8 @@
             if (Math.floor(titleTimer / 30) % 2 === 0) {
                 ctx.fillStyle = '#FFD700';
                 ctx.font = 'bold 22px Arial';
-                ctx.fillText('Press any key to start!', GAME_W / 2, GAME_H - 15);
+                const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                ctx.fillText(isTouchDevice ? 'Tap to start!' : 'Press any key to start!', GAME_W / 2, GAME_H - 15);
             }
 
             // Credit
@@ -689,6 +742,81 @@
             ctx.fillStyle = '#888';
             ctx.font = '18px Arial';
             ctx.fillText('Game by Eero Puhakka', 20, GAME_H - 15);
+        }
+
+        // === MOBILE TOUCH CONTROLS ===
+        const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        if (isMobile) {
+            document.getElementById('touchControls').style.display = 'block';
+            document.getElementById('tb-start').style.display = 'flex';
+
+            function touchBtn(id, keyName, opts) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const isToggle = opts && opts.toggle;
+
+                el.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    el.classList.add('pressed');
+                    keys[keyName] = true;
+                    // For jump, simulate keydown (needs jumpPressed logic)
+                    if (keyName === ' ' && !jumpPressed) {
+                        // jumpPressed is handled in update
+                    }
+                }, { passive: false });
+
+                el.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    el.classList.remove('pressed');
+                    keys[keyName] = false;
+                    if (keyName === ' ') jumpPressed = false;
+                }, { passive: false });
+
+                // Handle touch moving off the button
+                el.addEventListener('touchcancel', function(e) {
+                    el.classList.remove('pressed');
+                    keys[keyName] = false;
+                    if (keyName === ' ') jumpPressed = false;
+                });
+            }
+
+            touchBtn('tb-left', 'a');
+            touchBtn('tb-right', 'd');
+            touchBtn('tb-jump', ' ');
+            touchBtn('tb-normal', 'k');
+            touchBtn('tb-spiky', 'l');
+
+            // Start button for mobile
+            const startBtn = document.getElementById('tb-start');
+            startBtn.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                if (gameState === 'title') {
+                    gameState = 'playing';
+                    startBtn.style.display = 'none';
+                }
+            }, { passive: false });
+
+            // Also hide start button when game starts via keyboard
+            const origKeydown = window.onkeydown;
+            window.addEventListener('keydown', function() {
+                if (gameState === 'playing') {
+                    startBtn.style.display = 'none';
+                }
+            });
+
+            // Hide game controls on title, show during play
+            function updateTouchVisibility() {
+                const controls = document.getElementById('touchControls');
+                if (gameState === 'title') {
+                    controls.style.display = 'none';
+                    startBtn.style.display = 'flex';
+                } else {
+                    controls.style.display = 'block';
+                    startBtn.style.display = 'none';
+                }
+                requestAnimationFrame(updateTouchVisibility);
+            }
+            updateTouchVisibility();
         }
 
         // Start the game
