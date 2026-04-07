@@ -47,7 +47,7 @@
         #tb-normal { bottom: 8px; left: 15px; width: 60px; height: 40px; border-radius: 12px; font-size: 11px; background: rgba(68,68,255,0.3); border-color: rgba(68,68,255,0.5); color: rgba(150,150,255,0.8); }
         #tb-spiky { bottom: 8px; left: 85px; width: 60px; height: 40px; border-radius: 12px; font-size: 11px; background: rgba(255,68,68,0.3); border-color: rgba(255,68,68,0.5); color: rgba(255,150,150,0.8); }
         /* Start button for title screen */
-        #tb-start { bottom: 8%; left: 50%; transform: translate(-50%, 0); width: 160px; height: 50px; border-radius: 25px; font-size: 18px; display: none; }
+        #tb-start { bottom: 5%; left: 50%; transform: translate(-50%, 0); width: 160px; height: 50px; border-radius: 25px; font-size: 18px; display: none; }
     </style>
 </head>
 <body>
@@ -791,21 +791,21 @@
 
             if (isMobileDevice) {
                 // MOBILE VERTICAL LAYOUT
-                ctx.font = 'bold 32px Arial';
-                ctx.fillText("Welcome to", tw / 2, 90);
-                ctx.fillText("Eero's", tw / 2, 130);
-                ctx.font = 'bold 28px Arial';
-                ctx.fillText('Platform Game!', tw / 2, 170);
+                ctx.font = 'bold 30px Arial';
+                ctx.fillText("Welcome to", tw / 2, 70);
+                ctx.fillText("Eero's", tw / 2, 108);
+                ctx.font = 'bold 26px Arial';
+                ctx.fillText('Platform Game!', tw / 2, 145);
 
-                // Dancing character - bigger on mobile title
-                const size = 90;
-                const jumpHeight = Math.abs(Math.sin(titleTimer * 0.08)) * 25;
+                // Dancing character - moved up
+                const size = 75;
+                const jumpHeight = Math.abs(Math.sin(titleTimer * 0.08)) * 20;
                 const jackPhase = Math.sin(titleTimer * 0.15);
                 const armAngle = jackPhase * 0.8;
                 const legAngle = jackPhase * 0.5;
 
                 ctx.save();
-                ctx.translate(tw / 2, 320 - jumpHeight);
+                ctx.translate(tw / 2, 255 - jumpHeight);
 
                 ctx.fillStyle = '#4444FF';
                 ctx.fillRect(-size / 2, -size / 2, size, size);
@@ -821,29 +821,30 @@
                 ctx.arc(0, size * 0.1, size * 0.2, 0.1, Math.PI - 0.1);
                 ctx.stroke();
                 ctx.strokeStyle = '#4444FF';
-                ctx.lineWidth = 8;
-                ctx.beginPath(); ctx.moveTo(-size / 2, 0); ctx.lineTo(-size / 2 - 35, -20 - armAngle * 50); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2 + 35, -20 - armAngle * 50); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(-size * 0.15, size / 2); ctx.lineTo(-size * 0.2 - legAngle * 25, size / 2 + 40); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(size * 0.15, size / 2); ctx.lineTo(size * 0.2 + legAngle * 25, size / 2 + 40); ctx.stroke();
+                ctx.lineWidth = 7;
+                ctx.beginPath(); ctx.moveTo(-size / 2, 0); ctx.lineTo(-size / 2 - 30, -18 - armAngle * 40); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(size / 2, 0); ctx.lineTo(size / 2 + 30, -18 - armAngle * 40); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-size * 0.15, size / 2); ctx.lineTo(-size * 0.2 - legAngle * 22, size / 2 + 35); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(size * 0.15, size / 2); ctx.lineTo(size * 0.2 + legAngle * 22, size / 2 + 35); ctx.stroke();
                 ctx.restore();
 
-                // How to play section
+                // How to play section - moved up with space below for TAP TO START
+                const boxTop = 355;
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(20, 415, tw - 40, 190);
+                ctx.fillRect(25, boxTop, tw - 50, 175);
 
                 ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 20px Arial';
-                ctx.fillText('HOW TO PLAY', tw / 2, 430);
+                ctx.font = 'bold 17px Arial';
+                ctx.fillText('HOW TO PLAY', tw / 2, boxTop + 22);
 
                 ctx.fillStyle = 'white';
-                ctx.font = '15px Arial';
-                ctx.fillText('Touch LEFT side = move left', tw / 2, 460);
-                ctx.fillText('Touch RIGHT side = move right', tw / 2, 485);
-                ctx.fillText('JUMP button = jump (double jump!)', tw / 2, 510);
-                ctx.fillText('NORMAL = safe character', tw / 2, 535);
-                ctx.fillText('SPIKY = has shield (blocks 1 spike!)', tw / 2, 560);
-                ctx.fillText('Reach the flag to beat each level!', tw / 2, 585);
+                ctx.font = '13px Arial';
+                ctx.fillText('Touch LEFT side = move left', tw / 2, boxTop + 48);
+                ctx.fillText('Touch RIGHT side = move right', tw / 2, boxTop + 70);
+                ctx.fillText('JUMP button = jump (double jump!)', tw / 2, boxTop + 92);
+                ctx.fillText('NORMAL = normal character', tw / 2, boxTop + 114);
+                ctx.fillText('SPIKY = has shield (blocks 1 spike!)', tw / 2, boxTop + 136);
+                ctx.fillText('Reach the flag to beat each level!', tw / 2, boxTop + 158);
 
                 // Credit
                 ctx.textAlign = 'left';
@@ -893,13 +894,13 @@
                 const boxY = th - 140;
 
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-                ctx.fillRect(boxX - 200, boxY - 25, 400, 115);
+                ctx.fillRect(boxX - 250, boxY - 25, 500, 115);
 
                 ctx.fillStyle = '#FFD700';
                 ctx.font = 'bold 18px Arial';
                 ctx.fillText('CONTROLS', boxX, boxY);
                 ctx.fillStyle = 'white';
-                ctx.font = '16px Arial';
+                ctx.font = '15px Arial';
                 ctx.fillText('A = Move Left    D = Move Right    Space = Jump (x2!)', boxX, boxY + 25);
                 ctx.fillText('K = Normal Character    L = Spiky Character (has shield!)', boxX, boxY + 50);
                 ctx.fillText('Reach the flag to beat each level. 50 levels total!', boxX, boxY + 75);
